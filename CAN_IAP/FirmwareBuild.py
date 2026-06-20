@@ -14,7 +14,7 @@ def get_version(project_name):
     version_list = [0] * 3
     info_count = 0
     try:
-        # 本示例中/Application/Version.h为存放版本信息的文件, MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION为版本号数字
+        # Demo, 指定/Application/Version.h为存放版本信息的文件, MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION为版本号数字
         with open(project_name + "/Application/Version.h", 'r', encoding='utf-8') as version_file:
             file_lines = version_file.readlines()
             for line in file_lines:
@@ -198,6 +198,7 @@ def main():
 
     # 需要编译的工程参数: 工程名, 平台, 硬件索引
     project_list = [
+        # Demo
         ['TestBoard1', 'STM32F4', 1],
         ['TestBoard2', 'STM32F1', 4],
         ['TestBoard3', 'STM32F1', 3],
