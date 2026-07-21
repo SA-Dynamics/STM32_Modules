@@ -4,28 +4,17 @@
 #include "stm32f1xx_hal_flash.h"
 #include "CAN_Process.h"
 #include "usart.h"
-#include "flash_if.h"
-#include <stdbool.h>
 
-
+#if defined(STM32F103xB)
+#include "../FLASH_STM32F1/flash_if.h"
+#endif
 
 
 
 // IAP版本
-#define IAP_MAJOR_VERSION	1
+#define IAP_MAJOR_VERSION	0
 #define IAP_MINOR_VERSION	0
-#define IAP_PATCH_VERSION	0
-
-
-/* 
-	硬件索引
-	xx1：0x1
-	xx2：0x2
-	xx3：0x3
-	xx4：0x4
-	xx5：0x5
-*/
-#define HARDWARE_INDEX		0x4
+#define IAP_PATCH_VERSION	1
 
 
 
@@ -41,7 +30,7 @@
 #define UPDATE_REQUEST					(UPDATE_REQUEST_BASE + HARDWARE_INDEX)	
 #define PACKAGE_INFO_BASE				0x18200000	//数据包信息
 #define PACKAGE_INFO					(PACKAGE_INFO_BASE + HARDWARE_INDEX)	
-#define PACKAGE_DATA_BASE				0x18300000	//数据包信息
+#define PACKAGE_DATA_BASE				0x18300000	//数据信息
 #define PACKAGE_DATA					(PACKAGE_DATA_BASE + HARDWARE_INDEX)	
 
 
@@ -219,7 +208,6 @@ __weak FirmwareEvent cbReadEEPROM(const uint16_t u16Address, uint8_t *pData, con
   */
 static void IAP_UpdateProcess(void)
 {
-	uint8_t i = 0;
 	uint8_t u8Message[8] = {0};
 	CAN_TxHeaderTypeDef sTxHeader;
 	g_sIAP_StateManager.eCurrentState = IAP_UPDATE;
@@ -267,7 +255,7 @@ static void IAP_UpdateProcess(void)
 						sTxHeader.IDE = CAN_ID_EXT;
 						sTxHeader.RTR = CAN_RTR_DATA;
 						sTxHeader.DLC = 2;
-						SendMessageHandler(&sTxHeader, u8Message, DEFAULT_KEY_INDEX);
+						SendMessageHandler(&sTxHeader, u8Message);
 						ChangeProcessFunc(IAP_IdleProcess);		
 						return;
 					}
@@ -280,7 +268,7 @@ static void IAP_UpdateProcess(void)
 						sTxHeader.IDE = CAN_ID_EXT;
 						sTxHeader.RTR = CAN_RTR_DATA;
 						sTxHeader.DLC = 2;
-						SendMessageHandler(&sTxHeader, u8Message, DEFAULT_KEY_INDEX);	
+						SendMessageHandler(&sTxHeader, u8Message);	
 					}
 					
 					ChangeProcessFunc(IAP_PreUpdateProcess);
@@ -318,7 +306,7 @@ static void IAP_UpdateProcess(void)
 						sTxHeader.IDE = CAN_ID_EXT;
 						sTxHeader.RTR = CAN_RTR_DATA;
 						sTxHeader.DLC = 2;
-						SendMessageHandler(&sTxHeader, u8Message, DEFAULT_KEY_INDEX);
+						SendMessageHandler(&sTxHeader, u8Message);
 						
 						ChangeProcessFunc(IAP_IdleProcess);
 					}
@@ -333,7 +321,7 @@ static void IAP_UpdateProcess(void)
 					sTxHeader.IDE = CAN_ID_EXT;
 					sTxHeader.RTR = CAN_RTR_DATA;
 					sTxHeader.DLC = 2;
-					SendMessageHandler(&sTxHeader, u8Message, DEFAULT_KEY_INDEX);
+					SendMessageHandler(&sTxHeader, u8Message);
 					
 					ChangeProcessFunc(IAP_IdleProcess);
 				}
@@ -381,7 +369,7 @@ static void IAP_PreUpdateProcess(void)
 			sTxHeader.RTR = CAN_RTR_DATA;
 			sTxHeader.DLC = 2;
 
-			SendMessageHandler(&sTxHeader, u8Message, DEFAULT_KEY_INDEX);
+			SendMessageHandler(&sTxHeader, u8Message);
 			
 			g_sDataManager.u16CheckSum = 0;
 			g_sDataManager.u8WriteIndex = 0;
@@ -447,7 +435,7 @@ static void IAP_IdleProcess(void)
 					sTxHeader.RTR = CAN_RTR_DATA;
 					sTxHeader.DLC = 5;
 
-					SendMessageHandler(&sTxHeader, u8Message, DEFAULT_KEY_INDEX);
+					SendMessageHandler(&sTxHeader, u8Message);
 				}
 				break;
 			
@@ -462,7 +450,7 @@ static void IAP_IdleProcess(void)
 					g_sIAP_StateManager.u32ProgramAddr = APPLICATION2_ADDRESS;
 					g_sIAP_StateManager.u32ProgramSectorNum = APP2_SECTOR_NUM;
 				}				
-				uint8_t u8Ret = FLASH_If_Erase(g_sIAP_StateManager.u32ProgramAddr, g_sIAP_StateManager.u32ProgramSectorNum);			
+				FLASH_If_Erase(g_sIAP_StateManager.u32ProgramAddr, g_sIAP_StateManager.u32ProgramSectorNum);			
 				
 				// 回应固件更新请求, 并指示可以更新固件的区域即索引
 				u8Message[0] = 0x1;
@@ -474,7 +462,7 @@ static void IAP_IdleProcess(void)
 				sTxHeader.DLC = 2;
 			
 				g_sIAP_StateManager.sPkgInfo.u16PkgIndex = 0;
-				SendMessageHandler(&sTxHeader, u8Message, DEFAULT_KEY_INDEX);
+				SendMessageHandler(&sTxHeader, u8Message);
 			
 				// 任务指针指向更新流程
 				ChangeProcessFunc(IAP_PreUpdateProcess);
@@ -497,7 +485,7 @@ static void IAP_IdleProcess(void)
 						sTxHeader.IDE = CAN_ID_EXT;
 						sTxHeader.RTR = CAN_RTR_DATA;
 						sTxHeader.DLC = 2;
-						SendMessageHandler(&sTxHeader, u8Message, DEFAULT_KEY_INDEX);
+						SendMessageHandler(&sTxHeader, u8Message);
 						
 						HAL_Delay(10);
 						cbRollbackProcess();
@@ -510,7 +498,7 @@ static void IAP_IdleProcess(void)
 						sTxHeader.IDE = CAN_ID_EXT;
 						sTxHeader.RTR = CAN_RTR_DATA;
 						sTxHeader.DLC = 2;
-						SendMessageHandler(&sTxHeader, u8Message, DEFAULT_KEY_INDEX);
+						SendMessageHandler(&sTxHeader, u8Message);
 					}
 				#endif
 				break;
@@ -529,7 +517,7 @@ static void IAP_IdleProcess(void)
 					sTxHeader.IDE = CAN_ID_EXT;
 					sTxHeader.RTR = CAN_RTR_DATA;
 					sTxHeader.DLC = g_sIAP_StateManager.sEEPROM_Info.u8DataLen;
-					SendMessageHandler(&sTxHeader, u8Message, DEFAULT_KEY_INDEX);
+					SendMessageHandler(&sTxHeader, u8Message);
 				}
 				else
 				{
@@ -538,7 +526,7 @@ static void IAP_IdleProcess(void)
 					sTxHeader.IDE = CAN_ID_EXT;
 					sTxHeader.RTR = CAN_RTR_DATA;
 					sTxHeader.DLC = g_sIAP_StateManager.sEEPROM_Info.u8DataLen;
-					SendMessageHandler(&sTxHeader, u8Message, DEFAULT_KEY_INDEX);
+					SendMessageHandler(&sTxHeader, u8Message);
 				}
 				break;
 				
@@ -553,7 +541,7 @@ static void IAP_IdleProcess(void)
 				{
 					u8Message[0] = 1;					
 				}
-				SendMessageHandler(&sTxHeader, u8Message, DEFAULT_KEY_INDEX);
+				SendMessageHandler(&sTxHeader, u8Message);
 				break;
 					
 			default:

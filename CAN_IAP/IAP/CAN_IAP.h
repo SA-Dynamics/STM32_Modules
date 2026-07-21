@@ -5,11 +5,24 @@
 
 #define BOOTLOADER_ADDRESS				0x8000000
 
-// APP1和APP2的地址
-#define APPLICATION1_ADDRESS			0x800C000
-#define APP1_SECTOR_NUM		100
-#define APPLICATION2_ADDRESS			0x803E000
-#define APP2_SECTOR_NUM		100
+
+#define FW_RUN_NORMAL				1
+#define FW_UPDATE_NO_TEST			2
+#define FW_TEST_MODE				3
+
+
+/* 
+	自定义硬件索引, 同一个CAN总线上不要有相同的器件索引, 区分方式可用宏定义 
+	小容量MCU要特别注意区域大小规划
+*/
+#if defined(STM32F103xB)
+	#define HARDWARE_INDEX		0x1		
+	// APP1和APP2的地址
+	#define APPLICATION1_ADDRESS			0x8004400
+	#define APP1_SECTOR_NUM		22
+	#define APPLICATION2_ADDRESS			0x8009C00
+	#define APP2_SECTOR_NUM		22
+#endif
 
 typedef enum
 {

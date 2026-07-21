@@ -1,6 +1,8 @@
 #include "BootloaderProcess.h"
 #include "CAN_IAP.h"
-
+#include "Timer.h"
+#include "usart.h"
+#include "MemoryHandle.h"
 
 
 // Bootloader 版本
@@ -8,11 +10,14 @@
 #define BOOTLOADER_MINOR_VERSION	0
 #define BOOTLOADER_PATCH_VERSION	1
 
-#define PROGRAM_FLAG_ADDR			0x0
-#define APP1_FLAG_ADDR				0x1
-#define APP2_FLAG_ADDR				0x2
-#define APP_INDEX_ADDR				0x3
-#define LAST_FIRMWARE_ADDR_INDEX	0x4
+//// 程序状态和信息相关存储地址
+//#define PROGRAM_FLAG_ADDR			0x0s
+//#define APP1_FLAG_ADDR				0x1
+//#define APP2_FLAG_ADDR				0x2
+//#define APP_INDEX_ADDR				0x3
+//#define LAST_FIRMWARE_ADDR_INDEX	0x4
+
+
 
 // 更新完成后就跳转
 #define AUTO_JUMP_AFTER_UPDATE		true
@@ -24,14 +29,14 @@ static void ReadBootloaderParams(void);
 static void CheckBootloaderParams(void);
 static void SetIAP_Params(void);
 static void CheckIAP_State(void);
-static void WriteUpdateInfo(void);
+//static void WriteUpdateInfo(void);
 static void StartApp(void);
 static bool CheckJumpAddressData(const uint8_t u8Index);
 
 struct
 {
 	uint32_t u32WaitCount;
-	uint8_t u8ReadData[8];
+	uint8_t u8ReadData[MEMORY_DATA_NUM];
 	uint8_t u8WriteData[8];
 	uint8_t u8AppIndex;		// 应用程序跳转索引
 	uint8_t u8UpdateIndex;	// 固件更新区域索引
@@ -100,9 +105,43 @@ static void RunningLED_Process(void)
 	if (GetTimerTickDelta(u32BlinkCount, GetCurTimerCount()) >= g_sBootloaderManager.u32BlinkCount)
 	{
 		ResetTimerCount(&u32BlinkCount);
-		HAL_GPIO_TogglePin(RunnigLedPin_GPIO_Port, RunnigLedPin_Pin);
+		HAL_GPIO_TogglePin(RunningLED_GPIO_Port, RunningLED_Pin);
 	}
 }
+
+
+
+static bool ReadAndCheckMemData(void)
+{
+	bool bRet = false;
+	
+	ReadAllMemoryInfo((uint8_t **)&g_sBootloaderManager.u8ReadData);
+	
+	uint8_t u8CheckSum = 0;
+	for (uint8_t i = 0; i < MEMORY_DATA_NUM - 1; i++)
+	{
+		u8CheckSum ^= g_sBootloaderManager.u8ReadData[i];
+	}
+	
+	if (u8CheckSum == g_sBootloaderManager.u8ReadData[MEMORY_DATA_NUM - 1]) 
+	{
+		bRet = true; 
+	}
+	
+	return bRet;
+}
+
+
+/**
+  * @brief  自定义错误处理
+  * @param  None
+  * @retval None
+  */
+static void ErrorHandle(void)
+{
+	while (1);
+}
+
 
 
 /**
@@ -112,20 +151,23 @@ static void RunningLED_Process(void)
   */
 static void ReadBootloaderParams(void)
 {
-	if (GetTimerTickDelta(g_sBootloaderManager.u32WaitCount, GetCurTimerCount()) >= 10)
+	if (GetTimerTickDelta(g_sBootloaderManager.u32WaitCount, GetCurTimerCount()) >= 100)
 	{		
-		DEBUG_INFO("start read eeprom\r\n");
+		DEBUG_INFO("start read rom\r\n");
 		
-		// 读取MCU烧录标志, 第一次烧录程序需要用烧录器将bootloader和app一起烧入
-		if (HAL_OK == ReadMemory(PROGRAM_FLAG_ADDR, g_sBootloaderManager.u8ReadData, 4))
-		{
-			DEBUG_INFO("read eeprom success\r\n");
-			g_sBootloaderManager.pProcess = CheckBootloaderParams;
-		}
-		else
-		{
-			DEBUG_INFO("read eeprom failed\r\n");
-		}
+		// 读取MCU的IAP标志, 第一次烧录程序需要用烧录器将bootloader和app一起烧入		
+		ReadAndCheckMemData();
+		g_sBootloaderManager.pProcess = CheckBootloaderParams;
+		
+//		if (ReadAndCheckMemData())
+//		{
+//			DEBUG_INFO("read rom success\r\n");
+//			g_sBootloaderManager.pProcess = CheckBootloaderParams;
+//		}
+//		else
+//		{
+//			DEBUG_INFO("read rom error\r\n");
+//		}
 		
 		ResetTimerCount(&g_sBootloaderManager.u32WaitCount);		
 	}
@@ -189,11 +231,17 @@ static void CheckBootloaderParams(void)
 			g_sBootloaderManager.u8WriteData[1] = 1;
 			g_sBootloaderManager.u8WriteData[2] = 0;
 			g_sBootloaderManager.u8WriteData[3] = 1;
+			g_sBootloaderManager.u8WriteData[4] = 0;
 			
-			if (HAL_OK == WriteMemory(PROGRAM_FLAG_ADDR, g_sBootloaderManager.u8WriteData, 4))
+			if (WriteAllMemoryInfo(g_sBootloaderManager.u8WriteData))
 			{
-				DEBUG_INFO("first time to set eeprom\r\n");
+				DEBUG_INFO("first time to set eeprom success\r\n");
 				g_sBootloaderManager.pProcess = ReadBootloaderParams;
+			}
+			else
+			{
+				DEBUG_INFO("Write memory failed,%s:%d\r\n", __FUNCTION__, __LINE__);
+				ErrorHandle();
 			}
 		}
 		else
@@ -210,26 +258,37 @@ static void CheckBootloaderParams(void)
 					2代表更新固件后未直接跳转运行, 而是从bootloader启动了, 需要把标志
 					置为无效后再跳转
 				*/
-				if (1 == g_sBootloaderManager.u8ReadData[g_sBootloaderManager.u8AppIndex] || 
-					2 == g_sBootloaderManager.u8ReadData[g_sBootloaderManager.u8AppIndex])
+				if (FW_RUN_NORMAL == g_sBootloaderManager.u8ReadData[g_sBootloaderManager.u8AppIndex] || 
+					FW_UPDATE_NO_TEST == g_sBootloaderManager.u8ReadData[g_sBootloaderManager.u8AppIndex])
 				{
 					// 检查跳转的FLASH地址中的数据是否正常
 					if (CheckJumpAddressData(g_sBootloaderManager.u8AppIndex))
 					{
-						if (2 == g_sBootloaderManager.u8ReadData[g_sBootloaderManager.u8AppIndex])
+						// 需要去检测App是否能正常工作
+						if (FW_UPDATE_NO_TEST == g_sBootloaderManager.u8ReadData[g_sBootloaderManager.u8AppIndex])
 						{
-							uint8_t u8FirmwareFlag = 3;
-							if (HAL_OK == WriteMemory(PROGRAM_FLAG_ADDR + g_sBootloaderManager.u8AppIndex, &u8FirmwareFlag, 1))
+							ProgramInfoData sData[] = 
+							{
+								{
+									.eIndex = (ProgramInfoIndex)(PROGRAM_FLAG_INDEX + g_sBootloaderManager.u8AppIndex), 
+									.u8Data = (uint8_t)FW_TEST_MODE,
+								}
+							};
+							
+							if (WriteDiscontinuousMemoryInfo((ProgramInfoData *)&sData, sizeof(sData) / sizeof(sData[0])))
 							{
 								g_sBootloaderManager.pProcess = SetIAP_Params;
 							}
 							else
 							{
-								g_sBootloaderManager.pProcess = ReadBootloaderParams;
+								DEBUG_INFO("Write memory failed,%s:%d\r\n", __FUNCTION__, __LINE__);
+								//g_sBootloaderManager.pProcess = ReadBootloaderParams;
+								ErrorHandle();
 							}
 						}
 						else
 						{
+							// App已经正常工作过, 去设置IAP参数
 							g_sBootloaderManager.pProcess = SetIAP_Params;
 						}
 					}
@@ -238,9 +297,23 @@ static void CheckBootloaderParams(void)
 						// 如果跳转的FLASH地址中的数据不正常, 强行让该固件区域标志不正常										
 						DEBUG_INFO("set firmware flag invalid\r\n");
 						
-						uint8_t u8FirmwareFlag = 0;
-						WriteMemory(PROGRAM_FLAG_ADDR + g_sBootloaderManager.u8AppIndex, &u8FirmwareFlag, 1);
-						g_sBootloaderManager.pProcess = ReadBootloaderParams;
+						ProgramInfoData sData[] = 
+						{
+							{
+								.eIndex = (ProgramInfoIndex)(PROGRAM_FLAG_INDEX + g_sBootloaderManager.u8AppIndex), 
+								.u8Data = 0,
+							}
+						};
+							
+						if (WriteDiscontinuousMemoryInfo((ProgramInfoData *)&sData, sizeof(sData) / sizeof(sData[0])))
+						{
+							g_sBootloaderManager.pProcess = ReadBootloaderParams;
+						}
+						else
+						{
+							DEBUG_INFO("Write memory failed,%s:%d\r\n", __FUNCTION__, __LINE__);
+							ErrorHandle();
+						}					
 					}
 				}
 				else
@@ -258,8 +331,29 @@ static void CheckBootloaderParams(void)
 							
 							DEBUG_INFO("set jump index:%d\r\n", g_sBootloaderManager.u8AppIndex);
 							
-							WriteMemory(APP_INDEX_ADDR, &g_sBootloaderManager.u8AppIndex, 1);
-							g_sBootloaderManager.pProcess = ReadBootloaderParams;
+							// 先将跳转索引设置为该固件区，固件标志设置为待测试
+							ProgramInfoData sData[] = 
+							{
+								{
+									.eIndex = APP_ACTIVE_INDEX, 
+									.u8Data = g_sBootloaderManager.u8AppIndex,
+								},
+								
+								{
+									.eIndex = (ProgramInfoIndex)(PROGRAM_FLAG_INDEX + g_sBootloaderManager.u8AppIndex), 
+									.u8Data = (uint8_t)FW_TEST_MODE,
+								}
+							};
+							
+							if (WriteDiscontinuousMemoryInfo((ProgramInfoData *)&sData, sizeof(sData) / sizeof(sData[0])))
+							{
+								g_sBootloaderManager.pProcess = ReadBootloaderParams;
+							}
+							else
+							{
+								DEBUG_INFO("Write memory failed,%s:%d\r\n", __FUNCTION__, __LINE__);
+								ErrorHandle();
+							}							
 						}
 						else
 						{
@@ -268,8 +362,23 @@ static void CheckBootloaderParams(void)
 							
 							DEBUG_INFO("set jump index:%d\r\n", g_sBootloaderManager.u8AppIndex);
 							
-							WriteMemory(APP_INDEX_ADDR, &g_sBootloaderManager.u8AppIndex, 1);
-							g_sBootloaderManager.pProcess = ReadBootloaderParams;
+							ProgramInfoData sData[] = 
+							{
+								{
+									.eIndex = APP_ACTIVE_INDEX, 
+									.u8Data = 0,
+								}
+							};
+						
+							if (WriteDiscontinuousMemoryInfo((ProgramInfoData *)&sData, sizeof(sData) / sizeof(sData[0])))
+							{
+								g_sBootloaderManager.pProcess = ReadBootloaderParams;
+							}
+							else
+							{
+								DEBUG_INFO("Write memory failed,%s:%d\r\n", __FUNCTION__, __LINE__);
+								ErrorHandle();
+							}
 						}
 					}
 					else
@@ -279,8 +388,23 @@ static void CheckBootloaderParams(void)
 						
 						DEBUG_INFO("another firmware flag is invalid, set jump index:%d\r\n", g_sBootloaderManager.u8AppIndex);
 						
-						WriteMemory(APP_INDEX_ADDR, &g_sBootloaderManager.u8AppIndex, 1);
-						g_sBootloaderManager.pProcess = ReadBootloaderParams;
+						ProgramInfoData sData[] = 
+						{
+							{
+								.eIndex = APP_ACTIVE_INDEX, 
+								.u8Data = 0,
+							}
+						};
+					
+						if (WriteDiscontinuousMemoryInfo((ProgramInfoData *)&sData, sizeof(sData) / sizeof(sData[0])))
+						{
+							g_sBootloaderManager.pProcess = ReadBootloaderParams;
+						}
+						else
+						{
+							DEBUG_INFO("Write memory failed,%s:%d\r\n", __FUNCTION__, __LINE__);
+							ErrorHandle();
+						}
 					}
 				}
 			}
@@ -290,8 +414,24 @@ static void CheckBootloaderParams(void)
 				
 				DEBUG_INFO("jump index is invalid, set jump index:%d\r\n", g_sBootloaderManager.u8AppIndex);
 				
-				WriteMemory(APP_INDEX_ADDR, &g_sBootloaderManager.u8AppIndex, 1);
-				g_sBootloaderManager.pProcess = SetIAP_Params;
+				
+				ProgramInfoData sData[] = 
+				{
+					{
+						.eIndex = APP_ACTIVE_INDEX, 
+						.u8Data = 0,
+					}
+				};
+			
+				if (WriteDiscontinuousMemoryInfo((ProgramInfoData *)&sData, sizeof(sData) / sizeof(sData[0])))
+				{
+					g_sBootloaderManager.pProcess = SetIAP_Params;
+				}
+				else
+				{
+					DEBUG_INFO("Write memory failed,%s:%d\r\n", __FUNCTION__, __LINE__);
+					ErrorHandle();
+				}
 			}
 		}
 		
@@ -306,9 +446,7 @@ static void CheckBootloaderParams(void)
   * @retval None
   */
 static void SetIAP_Params(void)
-{	
-	uint8_t u8Index;
-	
+{		
 	g_sBootloaderManager.u32BlinkCount  = 500;
 	
 	DEBUG_INFO("set iap params\r\n");
@@ -385,58 +523,58 @@ static void CheckIAP_State(void)
 }
 
 
-static void WriteUpdateInfo(void)
-{
-	uint8_t u8Data = 0;
-	
-	switch (g_sBootloaderManager.u8Step)
-	{
-		case 0:
-			u8Data = 0x2;
-			if (HAL_OK == WriteMemory(g_sBootloaderManager.u8UpdateIndex, &u8Data, 1))
-			{				
-				g_sBootloaderManager.u8Step = 5;
-			}	
-			break;
-			
-		case 5:
-			if (HAL_OK == ReadMemory(g_sBootloaderManager.u8UpdateIndex, &u8Data, 1))
-			{
-				if (0x2 == u8Data)
-				{
-					g_sBootloaderManager.u8Step = 10;
-				}
-				else
-				{
-					g_sBootloaderManager.u8Step = 0;
-				}
-			}
-			break;
-			
-		case 10:
-			if (HAL_OK == WriteMemory(APP_INDEX_ADDR, &g_sBootloaderManager.u8UpdateIndex, 1))
-			{				
-				g_sBootloaderManager.u8Step = 15;
-			}	
-			break;
-			
-		case 15:
-			if (HAL_OK == ReadMemory(APP_INDEX_ADDR, &u8Data, 1))
-			{
-				if (u8Data == g_sBootloaderManager.u8UpdateIndex)
-				{
-					g_sBootloaderManager.u8AppIndex = g_sBootloaderManager.u8UpdateIndex;
-					g_sBootloaderManager.pProcess = StartApp;
-					g_sBootloaderManager.u8Step = 0;
-				}
-				else
-				{
-					g_sBootloaderManager.u8Step = 10;
-				}
-			}
-			break;
-	}
-}
+//static void WriteUpdateInfo(void)
+//{
+//	uint8_t u8Data = 0;
+//	
+//	switch (g_sBootloaderManager.u8Step)
+//	{
+//		case 0:
+//			u8Data = 0x2;
+////			if (HAL_OK == WriteMemory(g_sBootloaderManager.u8UpdateIndex, &u8Data, 1))
+////			{				
+////				g_sBootloaderManager.u8Step = 5;
+////			}	
+//			break;
+//			
+//		case 5:
+//			//if (HAL_OK == ReadMemory(g_sBootloaderManager.u8UpdateIndex, &u8Data, 1))
+//			{
+//				if (0x2 == u8Data)
+//				{
+//					g_sBootloaderManager.u8Step = 10;
+//				}
+//				else
+//				{
+//					g_sBootloaderManager.u8Step = 0;
+//				}
+//			}
+//			break;
+//			
+//		case 10:
+////			if (HAL_OK == WriteMemory(APP_INDEX_ADDR, &g_sBootloaderManager.u8UpdateIndex, 1))
+////			{				
+////				g_sBootloaderManager.u8Step = 15;
+////			}	
+//			break;
+//			
+//		case 15:
+//			//if (HAL_OK == ReadMemory(APP_INDEX_ADDR, &u8Data, 1))
+//			{
+//				if (u8Data == g_sBootloaderManager.u8UpdateIndex)
+//				{
+//					g_sBootloaderManager.u8AppIndex = g_sBootloaderManager.u8UpdateIndex;
+//					g_sBootloaderManager.pProcess = StartApp;
+//					g_sBootloaderManager.u8Step = 0;
+//				}
+//				else
+//				{
+//					g_sBootloaderManager.u8Step = 10;
+//				}
+//			}
+//			break;
+//	}
+//}
 
 
 static void StartApp(void)
@@ -450,76 +588,104 @@ static void StartApp(void)
 
 FirmwareEvent cbUpdateSuccessProcess(void)
 {
-	uint8_t u8Data = 0;
 	g_sBootloaderManager.bUpdateSuccess = true;
 	
-	// 更新EEPROM中的固件信息
-	u8Data = 2;
-	if (HAL_OK != WriteMemory(g_sBootloaderManager.u8UpdateIndex, &u8Data, 1))
-	{		
-		DEBUG_INFO("update eeprom flag failed\r\n");
-		return EVENT_WRITE_EEPROM_FAILED;
-	}
-	HAL_Delay(10);
-	
-	if (HAL_OK != ReadMemory(g_sBootloaderManager.u8UpdateIndex, &u8Data, 1))
+	// 更新ROM中的固件信息	
+	ProgramInfoData sData[] = 
 	{
-		DEBUG_INFO("read eeprom flag failed\r\n");
-		return EVENT_READ_EEPROM_FAILED;
-	}
-	HAL_Delay(10);
+		{
+			.eIndex = (ProgramInfoIndex)(g_sBootloaderManager.u8UpdateIndex), 
+			.u8Data = FW_UPDATE_NO_TEST,
+		},
+		
+		{
+			.eIndex = APP_ACTIVE_INDEX, 
+			.u8Data = g_sBootloaderManager.u8UpdateIndex,
+		},
+		
+		{
+			.eIndex = LAST_APP_INDEX, 
+			.u8Data = 0,
+		},
+	};
 	
-	if (2 != u8Data)
-	{
-		DEBUG_INFO("check eeprom flag failed\r\n");
-		return EVENT_EEPROM_CHECK_FAILED;
-	}
-	HAL_Delay(10);
 
-	u8Data = g_sBootloaderManager.u8UpdateIndex;
-	if (HAL_OK != WriteMemory(APP_INDEX_ADDR, &u8Data, 1))
-	{		
-		DEBUG_INFO("write eeprom index failed\r\n");
+	if (WriteDiscontinuousMemoryInfo((ProgramInfoData *)&sData, sizeof(sData) / sizeof(sData[0])))
+	{
+		DEBUG_INFO("Write memory mem info success\r\n");
+	}
+	else
+	{
+		DEBUG_INFO("Write memory failed,%s:%d\r\n", __FUNCTION__, __LINE__);
 		return EVENT_WRITE_EEPROM_FAILED;
-	}	
-	HAL_Delay(10);
-	
-	if (HAL_OK != ReadMemory(APP_INDEX_ADDR, &u8Data, 1))
-	{
-		DEBUG_INFO("read eeprom index failed\r\n");
-		return EVENT_READ_EEPROM_FAILED;
 	}
-	HAL_Delay(10);
-	
-	if (g_sBootloaderManager.u8UpdateIndex != u8Data)
-	{
-		DEBUG_INFO("check eeprom index failed\r\n");
-		return EVENT_EEPROM_CHECK_FAILED;
-	}
-	HAL_Delay(10);
 	
 	
-	// 记录本次固件信息
-	u8Data = 0;
-	if (HAL_OK != WriteMemory(LAST_FIRMWARE_ADDR_INDEX, &u8Data, 1))
-	{		
-		DEBUG_INFO("mark index failed\r\n");
-		return EVENT_WRITE_EEPROM_FAILED;
-	}	
-	HAL_Delay(10);
-	
-	if (HAL_OK != ReadMemory(LAST_FIRMWARE_ADDR_INDEX, &u8Data, 1))
-	{
-		DEBUG_INFO("read mark index failed\r\n");
-		return EVENT_READ_EEPROM_FAILED;
-	}
-	HAL_Delay(10);
-	
-	if (0 != u8Data)
-	{
-		DEBUG_INFO("check mark index failed\r\n");
-		return EVENT_EEPROM_CHECK_FAILED;
-	}
+//	if (HAL_OK != WriteMemory(g_sBootloaderManager.u8UpdateIndex, &u8Data, 1))
+//	{		
+//		DEBUG_INFO("update eeprom flag failed\r\n");
+//		return EVENT_WRITE_EEPROM_FAILED;
+//	}
+//	HAL_Delay(10);
+//	
+//	if (HAL_OK != ReadMemory(g_sBootloaderManager.u8UpdateIndex, &u8Data, 1))
+//	{
+//		DEBUG_INFO("read eeprom flag failed\r\n");
+//		return EVENT_READ_EEPROM_FAILED;
+//	}
+//	HAL_Delay(10);
+//	
+//	if (2 != u8Data)
+//	{
+//		DEBUG_INFO("check eeprom flag failed\r\n");
+//		return EVENT_EEPROM_CHECK_FAILED;
+//	}
+//	HAL_Delay(10);
+
+//	u8Data = g_sBootloaderManager.u8UpdateIndex;
+//	if (HAL_OK != WriteMemory(APP_INDEX_ADDR, &u8Data, 1))
+//	{		
+//		DEBUG_INFO("write eeprom index failed\r\n");
+//		return EVENT_WRITE_EEPROM_FAILED;
+//	}	
+//	HAL_Delay(10);
+//	
+//	if (HAL_OK != ReadMemory(APP_INDEX_ADDR, &u8Data, 1))
+//	{
+//		DEBUG_INFO("read eeprom index failed\r\n");
+//		return EVENT_READ_EEPROM_FAILED;
+//	}
+//	HAL_Delay(10);
+//	
+//	if (g_sBootloaderManager.u8UpdateIndex != u8Data)
+//	{
+//		DEBUG_INFO("check eeprom index failed\r\n");
+//		return EVENT_EEPROM_CHECK_FAILED;
+//	}
+//	HAL_Delay(10);
+//	
+//	
+//	// 记录本次固件信息
+//	u8Data = 0;
+//	if (HAL_OK != WriteMemory(LAST_FIRMWARE_ADDR_INDEX, &u8Data, 1))
+//	{		
+//		DEBUG_INFO("mark index failed\r\n");
+//		return EVENT_WRITE_EEPROM_FAILED;
+//	}	
+//	HAL_Delay(10);
+//	
+//	if (HAL_OK != ReadMemory(LAST_FIRMWARE_ADDR_INDEX, &u8Data, 1))
+//	{
+//		DEBUG_INFO("read mark index failed\r\n");
+//		return EVENT_READ_EEPROM_FAILED;
+//	}
+//	HAL_Delay(10);
+//	
+//	if (0 != u8Data)
+//	{
+//		DEBUG_INFO("check mark index failed\r\n");
+//		return EVENT_EEPROM_CHECK_FAILED;
+//	}
 	
 	
 	g_sBootloaderManager.u8AppIndex = g_sBootloaderManager.u8UpdateIndex;
@@ -532,19 +698,19 @@ FirmwareEvent cbWriteEEPROM(const uint16_t u16Address, const uint8_t u8Data)
 {
 	uint8_t u8DataRead = 0;
 	
-	if (HAL_OK != WriteMemory(u16Address, &u8Data, 1))
-	{		
-		DEBUG_INFO("write eeprom failed\r\n");
-		return EVENT_WRITE_EEPROM_FAILED;
-	}	
+//	if (HAL_OK != WriteMemory(u16Address, &u8Data, 1))
+//	{		
+//		DEBUG_INFO("write eeprom failed\r\n");
+//		return EVENT_WRITE_EEPROM_FAILED;
+//	}	
 	HAL_Delay(10);
 	
 	
-	if (HAL_OK != ReadMemory(u16Address, &u8DataRead, 1))
-	{
-		DEBUG_INFO("read eeprom failed\r\n");
-		return EVENT_READ_EEPROM_FAILED;
-	}
+//	if (HAL_OK != ReadMemory(u16Address, &u8DataRead, 1))
+//	{
+//		DEBUG_INFO("read eeprom failed\r\n");
+//		return EVENT_READ_EEPROM_FAILED;
+//	}
 	HAL_Delay(10);	
 	
 	if (u8DataRead != u8Data)
@@ -568,11 +734,11 @@ FirmwareEvent cbReadEEPROM(const uint16_t u16Address, uint8_t *pData, const uint
 		u8DataLenCheck = 8;
 	}
 	
-	if (HAL_OK != ReadMemory(u16Address, pData, u8DataLen))
-	{
-		DEBUG_INFO("read eeprom data failed\r\n");
-		return EVENT_READ_EEPROM_FAILED;
-	}
+//	if (HAL_OK != ReadMemory(u16Address, pData, u8DataLen))
+//	{
+//		DEBUG_INFO("read eeprom data failed\r\n");
+//		return EVENT_READ_EEPROM_FAILED;
+//	}
 	
 	DEBUG_INFO("read eeprom addr:%d,len:%d success\r\n", u16Address, u8DataLen);
 	
