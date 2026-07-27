@@ -11,7 +11,7 @@
 #define BOOTLOADER_PATCH_VERSION	1
 
 //// 程序状态和信息相关存储地址
-//#define PROGRAM_FLAG_ADDR			0x0s
+//#define PROGRAM_FLAG_ADDR			0x0
 //#define APP1_FLAG_ADDR				0x1
 //#define APP2_FLAG_ADDR				0x2
 //#define APP_INDEX_ADDR				0x3
@@ -105,7 +105,7 @@ static void RunningLED_Process(void)
 	if (GetTimerTickDelta(u32BlinkCount, GetCurTimerCount()) >= g_sBootloaderManager.u32BlinkCount)
 	{
 		ResetTimerCount(&u32BlinkCount);
-		HAL_GPIO_TogglePin(RunningLED_GPIO_Port, RunningLED_Pin);
+//		HAL_GPIO_TogglePin(RunningLED_GPIO_Port, RunningLED_Pin);
 	}
 }
 

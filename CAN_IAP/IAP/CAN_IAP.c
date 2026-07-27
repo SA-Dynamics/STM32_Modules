@@ -1,12 +1,13 @@
 #include "CAN_IAP.h"
 #include <string.h>
 #include "Timer.h"
-#include "stm32f1xx_hal_flash.h"
 #include "CAN_Process.h"
 #include "usart.h"
 
 #if defined(STM32F103xB)
 #include "../FLASH_STM32F1/flash_if.h"
+#elif defined(STM32F407xx)
+#include "../FLASH_STM32F4/flash_if.h"
 #endif
 
 

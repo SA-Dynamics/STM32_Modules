@@ -45,8 +45,8 @@ def create_program_file(project_name, file_path, mcu_type):
             program_file_size = 1024 * 512
             default_bytes = bytes([0xFF] * program_file_size)
         elif mcu_type == 'STM32F1':
-            # 创建一个默认大小的bin文件, F1系列为248Kb
-            program_file_size = 1024 * 248
+            # 创建一个默认大小的bin文件, F103中等容量系列为40Kb
+            program_file_size = 1024 * 40
             default_bytes = bytes([0xFF] * program_file_size)
         else:
             print("invalid mcu type")
@@ -71,7 +71,7 @@ def create_program_file(project_name, file_path, mcu_type):
         if mcu_type == 'STM32F4':
             program_file_content[0x20000: 0x20000 + len(default_app_content)] = default_app_content
         elif mcu_type == 'STM32F1':
-            program_file_content[0xC000: 0xC000 + len(default_app_content)] = default_app_content
+            program_file_content[0x4400: 0x4400 + len(default_app_content)] = default_app_content
 
         # 将合并的bin文件写回到原文件中
         with open(file_path, 'wb') as program_file:
@@ -187,23 +187,18 @@ def main():
             bin_files = glob.glob(os.path.join(release_path, f'*.bin'))
             for file in bin_files:
                 os.remove(file)
-            bin_files = glob.glob(os.path.join(release_path, f'*.pack'))
+            bin_files = glob.glob(os.path.join(release_path, f'*.stmpack'))
             for file in bin_files:
                 os.remove(file)
-            xml_files = glob.glob(os.path.join(release_path, f'*.xml'))
-            for file in xml_files:
-                os.remove(file)
+
         else:
             os.mkdir(release_path)
 
     # 需要编译的工程参数: 工程名, 平台, 硬件索引
     project_list = [
         # Demo
-        ['TestBoard1', 'STM32F4', 1],
-        ['TestBoard2', 'STM32F1', 4],
-        ['TestBoard3', 'STM32F1', 3],
-        ['TestBoard4', 'STM32F4', 2],
-        ['TestBoard5', 'STM32F4', 5]
+        ['STM32F103_Demo', 'STM32F1', 1],
+        ['STM32F407_Demo', 'STM32F4', 2],
     ]
 
     for i in range(len(project_list)):
@@ -223,7 +218,7 @@ def main():
 
             # 创建更新文件
             update_file_path = release_path + '/' + project_list[i][0] + '_V' + version_list[0] + '.' + version_list[1] + '.' + \
-                                version_list[2] + '.pack'
+                                version_list[2] + '.stmpack'
             create_update_file(project_list[i][0], update_file_path, [int(item) for item in version_list], project_list[i][2])
 
         else:
