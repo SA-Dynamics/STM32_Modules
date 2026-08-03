@@ -95,11 +95,15 @@ def create_update_file(project_name, file_path, file_version, device_index):
         with open(project_name + "/MDK-ARM/" + project_name + "/" + project_name + "1.bin", 'rb') as app1_file:
             app1_file_content = app1_file.read()
         app1_file.close()
+        if len(app1_file_content) % 8 != 0:
+            app1_file_content += (b'\x00' * (8 - len(app1_file_content) % 8))
 
         # 打开并读取app2文件, 将该内容写入到创建的bin文件中, 偏移量为128+app1
         with open(project_name + "/MDK-ARM/" + project_name + "/" + project_name + "2.bin", 'rb') as app2_file:
             app2_file_content = app2_file.read()
         app2_file.close()
+        if len(app2_file_content) % 8 != 0:
+            app2_file_content += (b'\x00' * (8 - len(app2_file_content) % 8))
 
         # 创建更新文件, 大小为 128 + app1 + app2
         program_file_size = 128 + len(app1_file_content) + len(app2_file_content)

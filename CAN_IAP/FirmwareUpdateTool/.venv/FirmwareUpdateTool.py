@@ -51,8 +51,6 @@ class UpdateHandler(UpdateProcessHandler):
         btn_connect_debugger.config(state=NORMAL)
         btn_scan_all_device.config(state=NORMAL)
         btn_scan_specified_device.config(state=NORMAL)
-        btn_write_eeprom.config(state=NORMAL)
-        btn_read_eeprom.config(state=NORMAL)
 
 update_handler = UpdateHandler()
 
@@ -133,8 +131,6 @@ def on_update_firmware():
         btn_connect_debugger.config(state=DISABLED)
         btn_scan_all_device.config(state=DISABLED)
         btn_scan_specified_device.config(state=DISABLED)
-        btn_write_eeprom.config(state=DISABLED)
-        btn_read_eeprom.config(state=DISABLED)
 
 
 def on_rollback_firmware():
@@ -192,7 +188,7 @@ device_list.grid(row=5, column=1, padx=20, pady=10, columnspan=6, sticky='w')
 
 
 
-device_enum = ttk.Combobox(main_window, values=["xx1", "xx2", "xx3", "xx4", "xx5"])
+device_enum = ttk.Combobox(main_window, values=["Demo1Board", "Demo2Board", "Demo3Board", "Demo4Board", "Demo5Board"])
 device_enum.configure(width=4)
 device_enum.grid(row=3, column=2, columnspan=1, sticky='w')
 device_enum.bind("<<ComboboxSelected>>", on_device_select)
@@ -222,34 +218,6 @@ text_disp.grid(row=5, column=6, padx=20, pady=10, columnspan=7, sticky='w')
 vertical_scroll = Scrollbar(main_window, command=text_disp.yview)
 text_disp.configure(yscrollcommand=vertical_scroll.set)
 #vertical_scroll.pack(side=RIGHT, fill=Y)
-
-
-# 读取EEPROM按钮
-btn_read_eeprom = Button(main_window, text="读EEPROM", command=on_read_eeprom)
-btn_read_eeprom.grid(row=6, column=1, ipadx=8 ,padx=20, pady=5, sticky='w')
-
-Label(main_window, width=8,text="读取数量:").grid(row=6, column=2, pady=5, sticky='w')
-read_num_spin = Spinbox(main_window, from_=1, to=8, width=2,wrap=True)
-read_num_spin.grid(row=6, column=3, pady=5, sticky='w')
-
-Label(main_window, width=8,text="读取地址:").grid(row=7, column=2, pady=5, sticky='w')
-read_address_spin = Spinbox(main_window, from_=0, to=4294967295, width=10,wrap=True)
-read_address_spin.grid(row=7, column=3, pady=5, sticky='w')
-
-
-# 写EEPROM按钮
-btn_write_eeprom = Button(main_window, text="写EEPROM", command=on_write_eeprom)
-btn_write_eeprom.grid(row=8, column=1, ipadx=8 ,padx=20, pady=5, sticky='w')
-
-Label(main_window, width=8,text="写入地址:").grid(row=8, column=2, pady=5, sticky='w')
-write_address_spin = Spinbox(main_window, from_=0, to=4294967295, width=10,wrap=True)
-write_address_spin.grid(row=8, column=3, pady=5, sticky='w')
-
-Label(main_window, width=8,text="写入数据:").grid(row=9, column=2, pady=5, sticky='w')
-write_data_spin = Spinbox(main_window, from_=0, to=255, width=3,wrap=True)
-write_data_spin.grid(row=9, column=3, pady=2, sticky='w')
-
-
 
 
 progress_var = DoubleVar(value=0.0)

@@ -43,8 +43,6 @@ struct
 };
 
 
-#if defined(APPLICATION1)
-#endif
 
 /**
   * @brief  自定义错误处理
@@ -71,16 +69,6 @@ static void ReadFirmwareFlag(void)
 		// 读取该固件对应的固件标志
 		
 		ReadSingleMemoryInfo((ProgramInfoIndex)g_sUpdateManager.u8FirmwareFlagAddr, &g_sUpdateManager.u8FirmwareFlag);
-		
-//		if (HAL_OK == ReadMemory(g_sUpdateManager.u8FirmwareFlagAddr, 
-//									&g_sUpdateManager.u8FirmwareFlag, 1))
-//		{
-//			DEBUG_INFO("read flag success\r\n");			
-//		}
-//		else
-//		{
-//			DEBUG_INFO("read flag failed\r\n");
-//		}
 		
 		g_sUpdateManager.pProcess = CheckFirmwareFlag;
 		
@@ -584,10 +572,10 @@ void UpdateProcessInit(void)
 	// 获取应用程序标志地址
 	#if defined (APPLICATION1)
 		g_sUpdateManager.u8FirmwareFlagAddr = APP1_FLAG_INDEX;
-		g_sUpdateManager.u8UpdateIndex = 2;
+		g_sUpdateManager.u8UpdateIndex = APP2_FLAG_INDEX;
 	#elif defined (APPLICATION2)
 		g_sUpdateManager.u8FirmwareFlagAddr = APP2_FLAG_INDEX;
-		g_sUpdateManager.u8UpdateIndex = 1;
+		g_sUpdateManager.u8UpdateIndex = APP1_FLAG_INDEX;
 	#endif
 	
 	g_sIAP_ProcessManager.SetFimwareInfo(TYPE_APPLICATION, 

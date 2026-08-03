@@ -7,7 +7,7 @@ import struct
 import threading
 import time
 from enum import Enum, auto
-from setuptools.command.easy_install import auto_chmod
+#from setuptools.command.easy_install import auto_chmod
 
 
 SCAN_ALL_DEVICE = 0x18000000
@@ -124,22 +124,27 @@ class FirmwareHandler:
         data_tuple = data_list[1]   # 高字节在下一个list元素中
         firmware2_size = (data_tuple[0] << 24) | firmware2_size
 
+        print(firmware1_size)
+        print(firmware2_size)
+
         version_string = str(data_tuple[1]) + "." + str(data_tuple[2]) + "." + str(data_tuple[3])
+        print(version_string)
 
         data_tuple = data_list[128 // 8]
         firmware1_start_data = ((data_tuple[0] << 24) | (data_tuple[1] << 16) |
                                 (data_tuple[2] << 8) | data_tuple[3])
+
         data_tuple = data_list[(firmware1_size + 128) // 8]
         firmware2_start_data = ((data_tuple[0] << 24) | (data_tuple[1] << 16) |
                                 (data_tuple[2] << 8) | data_tuple[3])
+
         if (self.__check_firmware_correct(firmware1_start_data) and
             self.__check_firmware_correct(firmware2_start_data)):
             self.__firmware1_size = firmware1_size
             self.__firmware2_size = firmware2_size
         else:
+            print("文件错误:固件数据错误")
             return False, "文件错误:固件数据错误"
-
-        #print(self.__firmware1_size, self.__firmware2_size)
 
         pack_num = -1
         data_offset = 128 // 8
@@ -190,7 +195,7 @@ class FirmwareHandler:
 class UpdateProcessHandler(FirmwareHandler):
     def __init__(self):
         super().__init__()
-        self.__device_dict = {1: "xx1", 2: "xx2", 3: "xx3", 4: "xx4", 5: "xx5"}
+        self.__device_dict = {1: "Demo1Board", 2: "Demo2Board", 3: "Demo3Board", 4: "Demo4Board", 5: "Demo5Board"}
         self.__respond_event_dict = {RESPOND_UPDATE : {UPDATE_FLASH1_ALLOW : RecvEvent.EVENT_UPDATE_ALLOW_1ST,
                                                        UPDATE_FLASH2_ALLOW : RecvEvent.EVENT_UPDATE_ALLOW_2ND,
                                                        UPDATE_NOT_ALLOW : RecvEvent.EVENT_UPDATE_NOT_ALLOW},
@@ -507,18 +512,16 @@ class UpdateProcessHandler(FirmwareHandler):
             event_recv = self.__get_msg_event()
             if event_recv == RecvEvent.EVENT_RECV_ALL_PACK_SUCCESS:
                 extern_info = ""
-                if 1 == device_index:
-                    extern_info = ",关闭工控机后应用更新"
                 self.update_result_handler(device_name + "固件更新完成" + extern_info, True)
                 break
             elif event_recv == RecvEvent.EVENT_EEPROM_WRITE_FAILED:
-                self.update_result_handler(device_name + "写EEPROM失败", False)
+                self.update_result_handler(device_name + "写ROM失败", False)
                 break
             elif event_recv == RecvEvent.EVENT_EEPROM_READ_FAILED:
-                self.update_result_handler(device_name + "读EEPROM失败", False)
+                self.update_result_handler(device_name + "读ROM失败", False)
                 break
             elif event_recv == RecvEvent.EVNET_EEPROM_CHECK_FAILED:
-                self.update_result_handler(device_name + "EEPROM数据校验错误", False)
+                self.update_result_handler(device_name + "ROM数据校验错误", False)
                 break
             else:
                 if timeout_count > 100:

@@ -25,7 +25,7 @@ static void App_Control(void)
 		ResetTimerCount(&u32TimerCount);
 		HAL_GPIO_TogglePin(RunningLED_GPIO_Port, RunningLED_Pin);
 		
-		printf("this is a test, stm32f103c8t6\r\n");	
+		DEBUG_INFO("this is a test, stm32f103c8t6\r\n");	
 	}
 }
 
@@ -33,6 +33,7 @@ static void App_Control(void)
 void ApplicationDemoInit(void)
 {
 	UpdateProcessInit();
+	DEBUG_INFO("stm32f103c8t6 demo start\r\n");	
 }
 
 

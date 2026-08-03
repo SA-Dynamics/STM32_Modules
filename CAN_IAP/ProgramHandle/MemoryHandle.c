@@ -1,5 +1,6 @@
 #include "MemoryHandle.h"
 #include <string.h>
+#include <stdio.h>
 
 #if defined(STM32F103xB)
 #include "../FLASH_STM32F1/flash_if.h"
@@ -42,7 +43,7 @@ void ReadAllMemoryInfo(uint8_t **pData)
 	
 	__IO uint8_t *pDataMem = (__IO uint8_t*) MEMORY_HANDLE_ADDR_START;
 	
-	memcpy(*pData, (void *)pDataMem, MEMORY_DATA_NUM);
+	memcpy(pData, (void *)pDataMem, MEMORY_DATA_NUM);
 }
 
 
@@ -58,24 +59,30 @@ bool WriteDiscontinuousMemoryInfo(const ProgramInfoData *pData, const uint8_t u8
 		
 	if (FLASH_If_Erase(MEMORY_HANDLE_ADDR_START, 1))
 	{
+		printf("%s,erase failed:", __FUNCTION__);
 		return false;
 	}
 	
 	
 	if (FLASH_If_Write(MEMORY_HANDLE_ADDR_START, (uint32_t *)u8MemData, 2))
 	{
+		printf("%s,write failed:", __FUNCTION__);
 		return false;
 	}
 	
 	if (FLASH_If_Erase(BACKUP_ADDR_START, 1))
 	{
+		printf("%s,erase backup failed:", __FUNCTION__);
 		return false;
 	}
 	
 	if (FLASH_If_Write(BACKUP_ADDR_START, (uint32_t *)u8MemData, 2))
 	{
+		printf("%s,write backup failed:", __FUNCTION__);
 		return false;
 	}
+	
+	return true;
 }
 
 

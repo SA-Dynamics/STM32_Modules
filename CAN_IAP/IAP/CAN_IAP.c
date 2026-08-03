@@ -589,8 +589,16 @@ void IAP_MessageHandler(CAN_RxHeaderTypeDef *pRxHeader, uint8_t *pMessage)
 				if (0x1 == pMessage[0])
 				{
 					// 获取固件数据包数量信息
-					g_sIAP_StateManager.sPkgInfo.u16PkgTotalNum = (pMessage[1] << 8) | pMessage[2];
-					g_sIAP_StateManager.eEvent = IAP_EVENT_UPDATE_REQUEST;
+					if (g_sIAP_StateManager.u8UpdateIndex == 1)
+					{
+						g_sIAP_StateManager.sPkgInfo.u16PkgTotalNum = (pMessage[1] << 8) | pMessage[2];
+						g_sIAP_StateManager.eEvent = IAP_EVENT_UPDATE_REQUEST;
+					}
+					else
+					{
+						g_sIAP_StateManager.sPkgInfo.u16PkgTotalNum = (pMessage[3] << 8) | pMessage[4];
+						g_sIAP_StateManager.eEvent = IAP_EVENT_UPDATE_REQUEST;
+					}
 				}
 				else if (0x2 == pMessage[0])
 				{

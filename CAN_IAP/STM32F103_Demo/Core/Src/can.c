@@ -21,7 +21,54 @@
 #include "can.h"
 
 /* USER CODE BEGIN 0 */
+void FilterConfig(void)
+{
+	CAN_FilterTypeDef sFilterConfig;
+	
+	uint32_t u32ExtIdArray[] ={0x18000000, 0x18100001, 0x18200001, 0x18300001};
+		
+	sFilterConfig.FilterIdHigh = ((u32ExtIdArray[0] << 3) >> 16) & 0xffff;
+	sFilterConfig.FilterIdLow = ((u32ExtIdArray[0] << 3) & 0xffff);	// | CAN_ID_EXT;
+	
 
+	uint32_t u32StdMask = 0x7FF;
+	uint32_t u32StdTemp = 0;
+	uint32_t u32StdVerifyID = 0x60;
+	for (uint32_t i = 0x1; i <= 0x20; i++)
+	{
+		u32StdTemp = i ^ (~u32StdVerifyID);
+		u32StdMask &= u32StdTemp;
+	}
+								
+	
+	uint32_t u32ExtMask = 0x1fffffff;
+	uint32_t u32ExtTemp = 0;
+	for (uint8_t i = 0; i < sizeof(u32ExtIdArray) / sizeof(u32ExtIdArray[0]); i++)
+	{
+		u32ExtTemp = u32ExtIdArray[i] ^ (~u32ExtIdArray[0]);    
+		u32ExtMask &= u32ExtTemp;
+	}
+	
+	uint32_t u32MixMask = (u32StdVerifyID << 18) ^ (~u32ExtIdArray[0]);
+	
+	uint32_t u32Mask = (u32StdMask << 18) & u32ExtMask & u32MixMask;
+	
+	u32Mask <<= 3;  
+		
+	sFilterConfig.FilterMaskIdHigh = (u32Mask >> 16) & 0xFFFF;
+	sFilterConfig.FilterMaskIdLow = (u32Mask & 0xFFFF);	// | 0x2;
+	sFilterConfig.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+	sFilterConfig.FilterBank = 1;
+	sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+	sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
+	sFilterConfig.FilterActivation = ENABLE;
+	sFilterConfig.SlaveStartFilterBank = 14;
+	
+	if (HAL_CAN_ConfigFilter(&hcan, &sFilterConfig) != HAL_OK)
+	{
+		Error_Handler();
+	}
+}
 /* USER CODE END 0 */
 
 CAN_HandleTypeDef hcan;
@@ -54,7 +101,9 @@ void MX_CAN_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN_Init 2 */
-
+	FilterConfig();
+  	HAL_CAN_Start(&hcan);
+	HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
   /* USER CODE END CAN_Init 2 */
 
 }
@@ -87,8 +136,8 @@ void HAL_CAN_MspInit(CAN_HandleTypeDef* canHandle)
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
     /* CAN1 interrupt Init */
-    HAL_NVIC_SetPriority(CAN1_RX1_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(CAN1_RX1_IRQn);
+    HAL_NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
   /* USER CODE BEGIN CAN1_MspInit 1 */
 
   /* USER CODE END CAN1_MspInit 1 */
@@ -113,7 +162,7 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* canHandle)
     HAL_GPIO_DeInit(GPIOA, GPIO_PIN_11|GPIO_PIN_12);
 
     /* CAN1 interrupt Deinit */
-    HAL_NVIC_DisableIRQ(CAN1_RX1_IRQn);
+    HAL_NVIC_DisableIRQ(USB_LP_CAN1_RX0_IRQn);
   /* USER CODE BEGIN CAN1_MspDeInit 1 */
 
   /* USER CODE END CAN1_MspDeInit 1 */

@@ -90,7 +90,7 @@ static bool JumpToUserApplication(const uint8_t u8Index)
 	return true;
 
 }
-
+#include "CAN_Process.h"
 
 /**
   * @brief  Run灯控制
@@ -101,11 +101,10 @@ static void RunningLED_Process(void)
 {
 	static uint32_t u32BlinkCount = 0;
 	
-	
 	if (GetTimerTickDelta(u32BlinkCount, GetCurTimerCount()) >= g_sBootloaderManager.u32BlinkCount)
 	{
 		ResetTimerCount(&u32BlinkCount);
-//		HAL_GPIO_TogglePin(RunningLED_GPIO_Port, RunningLED_Pin);
+		HAL_GPIO_TogglePin(RunningLED_GPIO_Port, RunningLED_Pin);
 	}
 }
 
@@ -116,6 +115,12 @@ static bool ReadAndCheckMemData(void)
 	bool bRet = false;
 	
 	ReadAllMemoryInfo((uint8_t **)&g_sBootloaderManager.u8ReadData);
+	DEBUG_INFO("read mem:");
+	for (uint8_t i = 0; i < MEMORY_DATA_NUM; i++)
+	{
+		DEBUG_INFO("%x ", g_sBootloaderManager.u8ReadData[i]);
+	}
+	DEBUG_INFO("\r\n");
 	
 	uint8_t u8CheckSum = 0;
 	for (uint8_t i = 0; i < MEMORY_DATA_NUM - 1; i++)
