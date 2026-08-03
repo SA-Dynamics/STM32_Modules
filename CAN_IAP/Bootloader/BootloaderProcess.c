@@ -1,8 +1,8 @@
 #include "BootloaderProcess.h"
-#include "CAN_IAP.h"
+#include "../IAP/CAN_IAP.h"
 #include "Timer.h"
 #include "usart.h"
-#include "MemoryHandle.h"
+#include "../ProgramHandle/MemoryHandle.h"
 
 
 // Bootloader 版本
@@ -104,7 +104,7 @@ static void RunningLED_Process(void)
 	if (GetTimerTickDelta(u32BlinkCount, GetCurTimerCount()) >= g_sBootloaderManager.u32BlinkCount)
 	{
 		ResetTimerCount(&u32BlinkCount);
-		HAL_GPIO_TogglePin(RunningLED_GPIO_Port, RunningLED_Pin);
+//		HAL_GPIO_TogglePin(RunningLED_GPIO_Port, RunningLED_Pin);
 	}
 }
 

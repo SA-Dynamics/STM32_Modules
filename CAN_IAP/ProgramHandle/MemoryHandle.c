@@ -9,7 +9,7 @@
 #elif defined(STM32F407xx)
 #include "../FLASH_STM32F4/flash_if.h"
 #define MEMORY_HANDLE_ADDR_START		0x08004000
-#define BACKUP_ADDR_START				0x0800F400
+#define BACKUP_ADDR_START				0x080E0000
 #endif
 
 

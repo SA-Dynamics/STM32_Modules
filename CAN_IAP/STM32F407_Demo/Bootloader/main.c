@@ -24,7 +24,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "ApplicationDemo.h"
+#include "../../Bootloader/BootloaderProcess.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -91,8 +91,7 @@ int main(void)
   MX_CAN1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-	ApplicationDemoInit();
-	__enable_irq();
+	BootloaderProcessInit();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -100,9 +99,9 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	
+
     /* USER CODE BEGIN 3 */
-	  ApplicationDemoHandle();
+	  BootloaderProcess();
   }
   /* USER CODE END 3 */
 }

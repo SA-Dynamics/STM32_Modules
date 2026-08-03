@@ -25,10 +25,10 @@
 #elif defined(STM32F407xx)
 	#define HARDWARE_INDEX		0x2		
 	// APP1和APP2的地址
-	#define APPLICATION1_ADDRESS			0x8004400
-	#define APP1_SECTOR_NUM		22
-	#define APPLICATION2_ADDRESS			0x8009C00
-	#define APP2_SECTOR_NUM		22
+	#define APPLICATION1_ADDRESS			0x8020000
+	#define APP1_SECTOR_NUM		3
+	#define APPLICATION2_ADDRESS			0x8080000
+	#define APP2_SECTOR_NUM		3
 #endif
 
 typedef enum
